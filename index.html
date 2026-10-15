@@ -1,0 +1,1036 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Pinfield helps you search places, plan routes, and save favourite locations."
+    />
+    <title>Pinfield — Explore smarter</title>
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+      body {
+        font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      }
+      #map {
+        min-height: 440px;
+        height: calc(100vh - 245px);
+        z-index: 0;
+      }
+      .leaflet-container {
+        font: inherit;
+      }
+      .fr:focus-visible {
+        outline: 3px solid #93c5fd;
+        outline-offset: 2px;
+      }
+      .skel {
+        height: 64px;
+        border-radius: 12px;
+        background: linear-gradient(
+          90deg,
+          #e2e8f0 25%,
+          #f1f5f9 50%,
+          #e2e8f0 75%
+        );
+        background-size: 200% 100%;
+        animation: sh 1.2s infinite;
+      }
+      @keyframes sh {
+        to {
+          background-position: -200% 0;
+        }
+      }
+      .card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        padding: 1rem;
+      }
+      .inp {
+        width: 100%;
+        border: 1px solid #cbd5e1;
+        border-radius: 12px;
+        padding: 0.7rem 0.75rem;
+        font-size: 0.875rem;
+      }
+      .inp.bad {
+        border-color: #dc2626;
+      }
+      .res {
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 0.75rem;
+        transition:
+          border-color 0.15s,
+          box-shadow 0.15s;
+      }
+      .res:hover,
+      .res.act {
+        border-color: #34d399;
+        box-shadow: 0 0 0 3px #d1fae5;
+      }
+      @media (max-width: 767px) {
+        #map {
+          min-height: 360px;
+          height: 52vh;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          animation: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body class="bg-slate-50 text-slate-900">
+    <header class="bg-white border-b border-slate-200">
+      <div
+        class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between gap-3"
+      >
+        <a
+          href="#"
+          class="flex items-center gap-2 font-black text-2xl tracking-tight"
+          aria-label="Pinfield home"
+        >
+          <span
+            class="inline-flex items-center justify-center rounded-xl bg-emerald-600 text-white w-10 h-10"
+            >P</span
+          >Pin<span class="text-emerald-600">field</span></a
+        >
+        <div class="hidden sm:block text-sm text-slate-500">
+          Explore smarter. Travel simpler.
+        </div>
+        <div class="flex items-center gap-3">
+          <span
+            id="hello"
+            class="hidden sm:inline text-sm font-semibold text-slate-600"
+          ></span>
+          <button
+            id="authBtn"
+            class="fr rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold px-4 py-2"
+          >
+            Log in
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto p-4 md:p-6">
+      <section class="mb-5">
+        <p
+          class="text-xs uppercase tracking-[.2em] font-bold text-emerald-700 mb-2"
+        >
+          Your everyday map companion
+        </p>
+        <h1 class="text-3xl md:text-4xl font-black tracking-tight">
+          Find places. Plan better.
+        </h1>
+        <p class="mt-2 text-slate-600 max-w-2xl">
+          Search near you, see what is closest, plan a route and save the places
+          you want to come back to.
+        </p>
+      </section>
+
+      <div class="grid lg:grid-cols-[350px_1fr] gap-4 items-start">
+        <aside class="space-y-4 min-w-0">
+          <section class="card">
+            <h2 class="font-bold text-lg mb-3">Search a location</h2>
+            <form id="sForm" class="space-y-2" novalidate>
+              <label for="q" class="block text-sm font-semibold"
+                >Place or category</label
+              >
+              <input
+                id="q"
+                class="inp fr"
+                placeholder="e.g. cafe, pharmacy, Cubbon Park"
+                autocomplete="off"
+                aria-describedby="qMsg"
+              />
+              <p
+                id="qMsg"
+                class="text-xs min-h-[1rem] text-slate-500"
+                role="alert"
+                aria-live="polite"
+              >
+                Enter at least 2 characters, then press Search.
+              </p>
+              <button
+                id="sBtn"
+                class="fr w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold py-3"
+              >
+                Search places
+              </button>
+            </form>
+            <div class="mt-4">
+              <p
+                class="text-xs uppercase tracking-wider text-slate-500 font-bold mb-2"
+              >
+                Quick searches
+              </p>
+              <div class="flex flex-wrap gap-2" id="chips">
+                <button
+                  class="fr rounded-full bg-slate-100 hover:bg-emerald-50 px-3 py-2 text-sm"
+                  data-q="cafe"
+                >
+                  ☕ Cafes
+                </button>
+                <button
+                  class="fr rounded-full bg-slate-100 hover:bg-emerald-50 px-3 py-2 text-sm"
+                  data-q="hospital"
+                >
+                  🏥 Hospitals
+                </button>
+                <button
+                  class="fr rounded-full bg-slate-100 hover:bg-emerald-50 px-3 py-2 text-sm"
+                  data-q="park"
+                >
+                  🌳 Parks
+                </button>
+                <button
+                  class="fr rounded-full bg-slate-100 hover:bg-emerald-50 px-3 py-2 text-sm"
+                  data-q="atm"
+                >
+                  💳 ATMs
+                </button>
+              </div>
+              <label class="mt-3 flex items-center gap-2 text-xs text-slate-500"
+                ><input id="off" type="checkbox" /> Use sample data (offline
+                demo)</label
+              >
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="flex items-center justify-between gap-2 mb-3">
+              <h2 class="font-bold text-lg">Route planner</h2>
+              <select
+                id="rMode"
+                class="fr text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full"
+                aria-label="Travel mode"
+              >
+                <option value="car">🚗 Driving</option>
+                <option value="foot">🚶 Walking</option>
+                <option value="bike">🚲 Cycling</option>
+              </select>
+            </div>
+            <form id="rForm" class="space-y-3" novalidate>
+              <div>
+                <label for="rA" class="block text-sm font-semibold mb-1"
+                  >Starting point</label
+                ><input
+                  id="rA"
+                  class="inp fr"
+                  placeholder="e.g. MG Road, Bengaluru"
+                />
+              </div>
+              <div>
+                <label for="rB" class="block text-sm font-semibold mb-1"
+                  >Destination</label
+                ><input
+                  id="rB"
+                  class="inp fr"
+                  placeholder="e.g. Lalbagh, Bengaluru"
+                />
+              </div>
+              <p id="rErr" class="hidden text-sm text-red-600" role="alert"></p>
+              <button
+                id="rBtn"
+                class="fr w-full rounded-xl bg-slate-900 hover:bg-slate-700 disabled:opacity-60 text-white font-bold py-3"
+              >
+                Calculate route
+              </button>
+            </form>
+            <div
+              id="rOut"
+              class="hidden mt-3 rounded-xl bg-blue-50 p-3 text-sm text-blue-900"
+              aria-live="polite"
+            ></div>
+          </section>
+
+          <section class="card">
+            <div class="flex items-center justify-between mb-2">
+              <h2 class="font-bold text-lg">Search results</h2>
+              <span id="rc" class="text-xs text-slate-500"
+                >Ready to search</span
+              >
+            </div>
+            <p
+              id="msg"
+              class="text-sm text-slate-500"
+              role="status"
+              aria-live="polite"
+            >
+              Search for a place to see results here.
+            </p>
+            <div id="results" class="mt-3 space-y-2"></div>
+          </section>
+
+          <section class="card">
+            <div class="flex items-center justify-between mb-2">
+              <h2 class="font-bold text-lg">Saved places</h2>
+              <button
+                id="clr"
+                class="fr text-xs font-semibold text-red-600 hover:underline"
+              >
+                Clear all
+              </button>
+            </div>
+            <p id="sEmpty" class="text-sm text-slate-500"></p>
+            <div id="saved" class="mt-3 space-y-2"></div>
+          </section>
+        </aside>
+
+        <section class="card !p-0 overflow-hidden min-w-0">
+          <div
+            class="px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200"
+          >
+            <div>
+              <h2 class="font-bold">Interactive map</h2>
+              <p id="mapSub" class="text-xs text-slate-500">
+                Select a result to focus the map.
+              </p>
+            </div>
+            <div class="flex gap-2">
+              <button
+                id="loc"
+                class="fr rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-50"
+              >
+                📍 My location
+              </button>
+              <button
+                id="reset"
+                class="fr rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-50"
+              >
+                Reset view
+              </button>
+            </div>
+          </div>
+          <div id="redoBar" class="hidden px-4 py-2 bg-emerald-50 text-sm">
+            <button
+              id="redo"
+              class="fr font-bold text-emerald-800 underline"
+            ></button>
+          </div>
+          <div id="map" aria-label="Interactive map"></div>
+          <div class="px-4 py-3 text-xs text-slate-500 bg-slate-50">
+            Map data ©
+            <a
+              class="underline"
+              href="https://www.openstreetmap.org/copyright"
+              target="_blank"
+              rel="noreferrer"
+              >OpenStreetMap contributors</a
+            >. Search by Nominatim; routes by OpenStreetMap routing.
+          </div>
+        </section>
+      </div>
+      <footer class="mt-6 text-center text-xs text-slate-500">
+        Pinfield is a student prototype. Public API services have usage limits.
+      </footer>
+    </main>
+
+    <!-- auth modal -->
+    <div
+      id="modal"
+      class="hidden fixed inset-0 z-[3000] bg-slate-900/50 items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="mTitle"
+    >
+      <div class="bg-white rounded-2xl max-w-md w-full p-6 relative shadow-2xl">
+        <button
+          id="mClose"
+          class="fr absolute top-3 right-3 w-9 h-9 rounded-full hover:bg-slate-100 text-xl"
+          aria-label="Close"
+        >
+          ×
+        </button>
+        <div id="inView">
+          <h2 id="mTitle" class="text-2xl font-black">Welcome back</h2>
+          <p id="mSub" class="text-sm text-slate-500 mb-4">
+            Log in to keep your saved places with your account.
+          </p>
+          <div class="flex rounded-xl bg-slate-100 p-1 mb-4">
+            <button
+              id="tL"
+              class="flex-1 rounded-lg py-2 text-sm font-bold bg-white shadow-sm"
+            >
+              Log in</button
+            ><button
+              id="tS"
+              class="flex-1 rounded-lg py-2 text-sm font-bold text-slate-500"
+            >
+              Sign up
+            </button>
+          </div>
+          <form id="aForm" class="space-y-1" novalidate>
+            <div id="fN">
+              <label for="name" class="text-sm font-semibold">Name</label
+              ><input id="name" class="inp fr" autocomplete="name" />
+              <p class="err text-xs text-red-600 min-h-[1.1rem]"></p>
+            </div>
+            <div>
+              <label for="email" class="text-sm font-semibold">Email</label
+              ><input
+                id="email"
+                type="email"
+                class="inp fr"
+                autocomplete="email"
+              />
+              <p class="err text-xs text-red-600 min-h-[1.1rem]"></p>
+            </div>
+            <div>
+              <label for="pass" class="text-sm font-semibold">Password</label
+              ><input
+                id="pass"
+                type="password"
+                class="inp fr"
+                autocomplete="current-password"
+              />
+              <p class="err text-xs text-red-600 min-h-[1.1rem]"></p>
+            </div>
+            <div id="fC">
+              <label for="conf" class="text-sm font-semibold"
+                >Confirm password</label
+              ><input id="conf" type="password" class="inp fr" />
+              <p class="err text-xs text-red-600 min-h-[1.1rem]"></p>
+            </div>
+            <p
+              id="aErr"
+              class="text-sm text-red-600 min-h-[1.2rem]"
+              role="alert"
+            ></p>
+            <button
+              id="aSub"
+              class="fr w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3"
+            >
+              Log in
+            </button>
+          </form>
+          <p id="hint" class="text-xs text-slate-500 mt-3">
+            Demo: demo@placefinder.app / demo1234. Student demo: accounts are
+            kept as JSON in this browser.
+          </p>
+        </div>
+        <div id="outView" class="hidden">
+          <h2 class="text-2xl font-black" id="pName"></h2>
+          <p class="text-sm text-slate-500 mb-4" id="pMail"></p>
+          <button
+            id="dl"
+            class="fr w-full rounded-xl bg-slate-900 text-white font-bold py-3 mb-2"
+          >
+            Download users.json
+          </button>
+          <button
+            id="logout"
+            class="fr w-full rounded-xl border border-red-300 text-red-600 font-bold py-3"
+          >
+            Log out
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const $ = (id) => document.getElementById(id),
+        esc = (s) =>
+          String(s).replace(
+            /[&<>"']/g,
+            (c) =>
+              ({
+                "&": "&amp;",
+                "<": "&lt;",
+                ">": "&gt;",
+                '"': "&quot;",
+                "'": "&#39;",
+              })[c],
+          );
+      let users = [],
+        me = null,
+        mode = "login",
+        found = [],
+        markers = {},
+        lastQ = "",
+        moveT,
+        guest = JSON.parse(localStorage.getItem("pf_guest") || "[]");
+      const SAMPLE_URL = "data/pois.json";
+
+      /* ---------- users.json + localStorage ---------- */
+      async function sha(s) {
+        const b = await crypto.subtle.digest(
+          "SHA-256",
+          new TextEncoder().encode(s),
+        );
+        return [...new Uint8Array(b)]
+          .map((x) => x.toString(16).padStart(2, "0"))
+          .join("");
+      }
+      const saveUsers = () =>
+        localStorage.setItem("pf_users", JSON.stringify(users, null, 2));
+      async function loadUsers() {
+        const l = localStorage.getItem("pf_users");
+        if (l) {
+          users = JSON.parse(l);
+          return;
+        }
+        try {
+          const r = await fetch("data/users.json");
+          users = r.ok ? await r.json() : [];
+        } catch {
+          users = [];
+        }
+        saveUsers();
+      }
+      const getSaved = () => (me ? me.saved : guest);
+      function persist() {
+        me
+          ? saveUsers()
+          : localStorage.setItem("pf_guest", JSON.stringify(guest));
+        renderSaved();
+      }
+
+      /* ---------- map ---------- */
+      const map = L.map("map").setView([12.9716, 77.5946], 12);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: "&copy; OpenStreetMap contributors",
+      }).addTo(map);
+      const layer = L.layerGroup().addTo(map);
+
+      /* ---------- search ---------- */
+      function validate(v) {
+        v = v.trim();
+        if (!v) return "Type a place or category first.";
+        if (v.length < 2) return "Use at least 2 characters.";
+        if (v.length > 60) return "Keep it under 60 characters.";
+        if (!/^[\p{L}\p{N} .,'&-]+$/u.test(v))
+          return "Letters and numbers only, please.";
+        return "";
+      }
+      function qMsg(m) {
+        const el = $("qMsg");
+        el.textContent =
+          m ||
+          ($("q").value.trim()
+            ? "Looks good ✓"
+            : "Enter at least 2 characters, then press Search.");
+        el.className =
+          "text-xs min-h-[1rem] " +
+          (m
+            ? "text-red-600"
+            : $("q").value.trim()
+              ? "text-emerald-700"
+              : "text-slate-500");
+        $("q").classList.toggle("bad", !!m);
+        $("q").setAttribute("aria-invalid", !!m);
+      }
+      function setMsg(t, k) {
+        $("msg").textContent = t;
+        $("msg").className =
+          "text-sm " +
+          (k === "e"
+            ? "text-red-600"
+            : k === "s"
+              ? "text-emerald-700"
+              : "text-slate-500");
+      }
+      async function fetchPlaces(q) {
+        if ($("off").checked) {
+          await new Promise((r) => setTimeout(r, 800));
+          const r = await fetch(SAMPLE_URL);
+          if (!r.ok) throw new Error("Sample file data/pois.json not found.");
+          return (await r.json()).filter((p) =>
+            (p.type + p.name).toLowerCase().includes(q.toLowerCase()),
+          );
+        }
+        const b = map.getBounds(),
+          vb = [b.getWest(), b.getNorth(), b.getEast(), b.getSouth()].join(",");
+        const r = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&limit=8&viewbox=${vb}&q=${encodeURIComponent(q)}`,
+        );
+        if (!r.ok) throw new Error(`Search service returned HTTP ${r.status}.`);
+        const d = await r.json();
+        if (!Array.isArray(d))
+          throw new Error("Unexpected response from the search service.");
+        return d.map((p) => ({
+          id: String(p.place_id),
+          name: p.display_name.split(",")[0],
+          type: p.type,
+          lat: +p.lat,
+          lon: +p.lon,
+          address: p.display_name.split(",").slice(1, 3).join(",").trim(),
+        }));
+      }
+      async function search(q) {
+        lastQ = q;
+        $("redoBar").classList.add("hidden");
+        $("sBtn").disabled = true;
+        $("sBtn").textContent = "Searching…";
+        setMsg("Loading places from OpenStreetMap…");
+        $("rc").textContent = "Loading…";
+        layer.clearLayers();
+        markers = {};
+        $("results").innerHTML = '<div class="skel"></div>'.repeat(3);
+        try {
+          const r = await fetchPlaces(q),
+            c = map.getCenter();
+          r.forEach((p) => (p.d = c.distanceTo([p.lat, p.lon])));
+          r.sort((a, b) => a.d - b.d);
+          found = r;
+          if (!r.length) {
+            $("rc").textContent = "0 results";
+            setMsg("No results found. Try another search phrase.", "e");
+            return ($("results").innerHTML =
+              '<p class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">No matching places found. Zoom out, move the map, or add the city name.</p>');
+          }
+          r.forEach((p) => {
+            markers[p.id] = L.marker([p.lat, p.lon])
+              .addTo(layer)
+              .bindPopup(`<b>${esc(p.name)}</b><br>${esc(p.address)}`)
+              .on("click", () => act(p.id, true));
+          }); // EVENT: marker click
+          map.fitBounds(
+            L.featureGroup(Object.values(markers)).getBounds().pad(0.2),
+            { maxZoom: 15 },
+          );
+          $("rc").textContent =
+            r.length + " result" + (r.length > 1 ? "s" : "");
+          showResults(r);
+          setMsg("Search complete. Nearest results are first.", "s");
+        } catch (e) {
+          console.error(e);
+          $("rc").textContent = "Unavailable";
+          setMsg("Could not load places.", "e");
+          $("results").innerHTML =
+            `<div class="rounded-xl bg-red-50 p-3 text-sm text-red-700" role="alert">${e instanceof TypeError ? "Network problem. Check your connection or use the offline demo." : esc(e.message)}<br><button id="retry" class="fr mt-2 rounded-lg bg-red-600 text-white px-3 py-1 font-bold">Retry</button></div>`;
+          $("retry").onclick = () => search(lastQ);
+        } finally {
+          $("sBtn").disabled = false;
+          $("sBtn").textContent = "Search places";
+        }
+      }
+      const isSaved = (id) => getSaved().some((p) => p.id === id);
+      function showResults(items) {
+        $("results").innerHTML = items
+          .map(
+            (p, i) => `<article class="res" data-id="${p.id}" tabindex="0">
+    <p class="text-sm font-semibold leading-snug">${esc(p.name)}</p>
+    <p class="mt-1 text-xs text-slate-500">${esc(p.type)} · ${(p.d / 1000).toFixed(1)} km · ${esc(p.address)}</p>
+    <div class="mt-3 flex gap-2"><button class="fr show flex-1 rounded-lg bg-emerald-50 text-emerald-800 px-3 py-2 text-xs font-bold hover:bg-emerald-100" data-i="${i}">Show on map</button>
+    <button class="fr save rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold hover:bg-slate-50" data-i="${i}">${isSaved(p.id) ? "★ Saved" : "☆ Save"}</button></div></article>`,
+          )
+          .join("");
+      }
+      function act(id, scroll) {
+        document
+          .querySelectorAll(".res")
+          .forEach((c) => c.classList.toggle("act", c.dataset.id === id));
+        if (scroll) {
+          const el = document.querySelector(
+            `.res[data-id="${CSS.escape(id)}"]`,
+          );
+          el && el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        }
+      }
+      function focusPlace(p) {
+        map.flyTo([p.lat, p.lon], 16, { duration: 0.7 });
+        L.popup()
+          .setLatLng([p.lat, p.lon])
+          .setContent(`<b>${esc(p.name)}</b><br>${esc(p.address || "")}`)
+          .openOn(map);
+        $("mapSub").textContent = p.name;
+      }
+
+      /* ---------- events ---------- */
+      $("q").addEventListener("input", () =>
+        qMsg($("q").value ? validate($("q").value) : ""),
+      ); // EVENT 1: live validation
+      $("sForm").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const m = validate($("q").value);
+        qMsg(m);
+        if (m) return $("q").focus();
+        search($("q").value.trim());
+      }); // EVENT 2: submit
+      $("chips").addEventListener("click", (e) => {
+        const b = e.target.closest("[data-q]");
+        if (b) {
+          $("q").value = b.dataset.q;
+          qMsg("");
+          search(b.dataset.q);
+        }
+      }); // EVENT 3: click chips
+      $("results").addEventListener("click", (e) => {
+        const s = e.target.closest(".show"),
+          v = e.target.closest(".save");
+        if (s) {
+          const p = found[+s.dataset.i];
+          p && (focusPlace(p), act(p.id));
+        }
+        if (v) {
+          const p = found[+v.dataset.i],
+            list = getSaved(),
+            i = list.findIndex((x) => x.id === p.id);
+          if (i > -1) {
+            list.splice(i, 1);
+            toast("Removed from saved");
+          } else {
+            const { d, ...r } = p;
+            list.push(r);
+            toast(
+              me
+                ? "Saved to your account"
+                : "Saved on this device. Log in to keep it with your account.",
+            );
+          }
+          persist();
+          showResults(found);
+        }
+      });
+      $("results").addEventListener("mouseover", (e) => {
+        const c = e.target.closest(".res");
+        if (c) {
+          act(c.dataset.id);
+          const m = markers[c.dataset.id];
+          m && m.setZIndexOffset(1000);
+        }
+      }); // EVENT 4: hover
+      $("results").addEventListener("focusin", (e) => {
+        const c = e.target.closest(".res");
+        c && act(c.dataset.id);
+      }); // EVENT 4b: keyboard focus
+      map.on("moveend", () => {
+        clearTimeout(moveT);
+        moveT = setTimeout(() => {
+          if (lastQ && found.length) {
+            $("redo").textContent =
+              "↻ Search this area again for “" + lastQ + "”";
+            $("redoBar").classList.remove("hidden");
+          }
+        }, 500);
+      }); // EVENT 5: viewport change
+      $("redo").onclick = () => search(lastQ);
+      map.on("click", (e) =>
+        L.popup()
+          .setLatLng(e.latlng)
+          .setContent(
+            `Map point<br><small>Lat ${e.latlng.lat.toFixed(5)}, Lon ${e.latlng.lng.toFixed(5)}</small>`,
+          )
+          .openOn(map),
+      ); // EVENT 6: map click
+      $("reset").onclick = () => {
+        map.setView([12.9716, 77.5946], 12);
+        map.closePopup();
+      };
+      $("loc").onclick = () => {
+        if (!navigator.geolocation) return toast("Location not supported");
+        navigator.geolocation.getCurrentPosition(
+          (p) => {
+            map.flyTo([p.coords.latitude, p.coords.longitude], 15);
+            toast("Centered on you");
+          },
+          () => toast("Location blocked in browser settings"),
+        );
+      };
+      document.addEventListener("keydown", (e) => {
+        if (
+          e.key === "/" &&
+          !/INPUT|SELECT/.test(document.activeElement.tagName)
+        ) {
+          e.preventDefault();
+          $("q").focus();
+        }
+        if (e.key === "Escape") closeModal();
+      }); // EVENT 7: keyboard
+
+      /* ---------- saved ---------- */
+      function renderSaved() {
+        const l = getSaved();
+        $("sEmpty").classList.toggle("hidden", l.length > 0);
+        $("sEmpty").textContent = me
+          ? "No saved places yet. Save a search result to keep it here."
+          : "No saved places yet. Log in to keep them with your account.";
+        $("saved").innerHTML = l
+          .map(
+            (
+              p,
+              i,
+            ) => `<div class="rounded-xl bg-slate-50 border border-slate-200 p-3"><p class="text-sm font-semibold">${esc(p.name)}</p><p class="text-xs text-slate-500">${esc(p.address || "")}</p>
+    <div class="flex gap-3 mt-2 text-xs"><button class="fr sf font-bold text-emerald-700 hover:underline" data-i="${i}">Show on map</button><button class="fr sr font-bold text-red-600 hover:underline" data-i="${i}">Remove</button></div></div>`,
+          )
+          .join("");
+      }
+      $("saved").addEventListener("click", (e) => {
+        const l = getSaved(),
+          f = e.target.closest(".sf"),
+          r = e.target.closest(".sr");
+        if (f) focusPlace(l[+f.dataset.i]);
+        if (r) {
+          l.splice(+r.dataset.i, 1);
+          persist();
+          found.length && showResults(found);
+        }
+      });
+      $("clr").onclick = () => {
+        const l = getSaved();
+        if (l.length && confirm("Remove all saved places?")) {
+          l.length = 0;
+          persist();
+          found.length && showResults(found);
+        }
+      };
+
+      /* ---------- route ---------- */
+      async function geo(q) {
+        const r = await fetch(
+          "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" +
+            encodeURIComponent(q),
+        );
+        if (!r.ok)
+          throw new Error(`Location lookup failed (HTTP ${r.status}).`);
+        const d = await r.json();
+        if (!d.length) throw new Error(`Could not find: ${q}.`);
+        return [+d[0].lon, +d[0].lat];
+      }
+      $("rForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const a = $("rA").value.trim(),
+          b = $("rB").value.trim(),
+          er = $("rErr");
+        er.classList.add("hidden");
+        $("rOut").classList.add("hidden");
+        const bad = (t) => {
+          er.textContent = t;
+          er.classList.remove("hidden");
+        };
+        if (a.length < 2 || b.length < 2)
+          return bad("Fill in both the start and the destination.");
+        if (a.toLowerCase() === b.toLowerCase())
+          return bad("Start and destination must be different.");
+        $("rBtn").disabled = true;
+        $("rBtn").textContent = "Calculating…";
+        try {
+          const A = await geo(a);
+          await new Promise((r) => setTimeout(r, 1100));
+          const B = await geo(b),
+            m = $("rMode").value;
+          const r = await fetch(
+            `https://routing.openstreetmap.de/routed-${m}/route/v1/driving/${A.join(",")};${B.join(",")}?overview=full&geometries=geojson`,
+          );
+          if (!r.ok)
+            throw new Error(`Routing service returned HTTP ${r.status}.`);
+          const j = await r.json();
+          if (j.code !== "Ok" || !j.routes.length)
+            throw new Error("No route was found for these locations.");
+          const rt = j.routes[0];
+          layer.clearLayers();
+          markers = {};
+          const line = L.geoJSON(rt.geometry, {
+            style: { color: "#059669", weight: 5, opacity: 0.85 },
+          }).addTo(layer);
+          [
+            [A, "#2563eb"],
+            [B, "#dc2626"],
+          ].forEach(([c, col]) =>
+            L.circleMarker([c[1], c[0]], {
+              radius: 8,
+              color: "#fff",
+              weight: 3,
+              fillColor: col,
+              fillOpacity: 1,
+            }).addTo(layer),
+          );
+          map.fitBounds(line.getBounds(), { padding: [24, 24] });
+          const min = Math.round(rt.duration / 60),
+            t =
+              min >= 60
+                ? Math.floor(min / 60) + " h " + (min % 60) + " min"
+                : min + " min";
+          $("rOut").innerHTML =
+            `<strong>Route found</strong><br>Approx. ${(rt.distance / 1000).toFixed(1)} km · ${t}<br><span class="text-xs">Estimates only; actual travel time may differ.</span>`;
+          $("rOut").classList.remove("hidden");
+        } catch (err) {
+          bad(
+            (err instanceof TypeError ? "Network problem." : err.message) +
+              " Check spelling or try again later.",
+          );
+        } finally {
+          $("rBtn").disabled = false;
+          $("rBtn").textContent = "Calculate route";
+        }
+      });
+      ["rA", "rB"].forEach((id) =>
+        $(id).addEventListener("change", (e) =>
+          e.target.classList.toggle("bad", e.target.value.trim().length === 1),
+        ),
+      ); // EVENT 8: change
+
+      /* ---------- auth modal ---------- */
+      function toast(m) {
+        let t = $("toast");
+        if (!t) {
+          t = document.createElement("div");
+          t.id = "toast";
+          t.className =
+            "fixed bottom-5 left-1/2 -translate-x-1/2 z-[4000] rounded-xl bg-slate-900 text-white px-4 py-3 text-sm shadow-xl";
+          t.setAttribute("role", "status");
+          document.body.appendChild(t);
+        }
+        t.textContent = m;
+        t.style.display = "block";
+        clearTimeout(t._t);
+        t._t = setTimeout(() => (t.style.display = "none"), 2600);
+      }
+      function setMode(m) {
+        mode = m;
+        const s = m === "signup";
+        $("tL").className =
+          "flex-1 rounded-lg py-2 text-sm font-bold " +
+          (s ? "text-slate-500" : "bg-white shadow-sm");
+        $("tS").className =
+          "flex-1 rounded-lg py-2 text-sm font-bold " +
+          (s ? "bg-white shadow-sm" : "text-slate-500");
+        $("fN").style.display = $("fC").style.display = s ? "block" : "none";
+        $("aSub").textContent = s ? "Create account" : "Log in";
+        $("hint").style.display = s ? "none" : "block";
+        $("mTitle").textContent = s ? "Create your account" : "Welcome back";
+        document.querySelectorAll(".err").forEach((e) => (e.textContent = ""));
+        $("aErr").textContent = "";
+      }
+      function openModal() {
+        const m = $("modal");
+        m.classList.remove("hidden");
+        m.classList.add("flex");
+        $("inView").classList.toggle("hidden", !!me);
+        $("outView").classList.toggle("hidden", !me);
+        if (me) {
+          $("pName").textContent = me.name;
+          $("pMail").textContent = me.email;
+        } else setMode("login");
+      }
+      function closeModal() {
+        $("modal").classList.add("hidden");
+        $("modal").classList.remove("flex");
+      }
+      function updAuth() {
+        $("authBtn").textContent = me ? "Account" : "Log in";
+        $("hello").textContent = me ? "Hi, " + me.name.split(" ")[0] : "";
+        renderSaved();
+      }
+      $("authBtn").onclick = openModal;
+      $("mClose").onclick = closeModal;
+      $("modal").addEventListener("click", (e) => {
+        if (e.target === $("modal")) closeModal();
+      });
+      $("tL").onclick = () => setMode("login");
+      $("tS").onclick = () => setMode("signup");
+      function fe(id, msg) {
+        const el = $(id);
+        el.classList.toggle("bad", !!msg);
+        el.parentElement.querySelector(".err").textContent = msg || "";
+        return !msg;
+      }
+      $("email").addEventListener("blur", () =>
+        fe(
+          "email",
+          !$("email").value || /^\S+@\S+\.\S+$/.test($("email").value)
+            ? ""
+            : "Enter a valid email",
+        ),
+      );
+      $("aForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const sg = mode === "signup",
+          name = $("name").value.trim(),
+          email = $("email").value.trim().toLowerCase(),
+          pw = $("pass").value;
+        let ok = true;
+        if (sg) ok = fe("name", name.length < 2 ? "Enter your name" : "") && ok;
+        ok =
+          fe(
+            "email",
+            /^\S+@\S+\.\S+$/.test(email) ? "" : "Enter a valid email",
+          ) && ok;
+        ok =
+          fe(
+            "pass",
+            sg
+              ? pw.length >= 8 && /[A-Z]/.test(pw) && /\d/.test(pw)
+                ? ""
+                : "8+ characters, a capital letter and a number"
+              : pw
+                ? ""
+                : "Enter your password",
+          ) && ok;
+        if (sg)
+          ok =
+            fe(
+              "conf",
+              $("conf").value === pw ? "" : "Passwords do not match",
+            ) && ok;
+        if (!ok) return;
+        const h = await sha(pw),
+          f = users.find((u) => u.email === email);
+        if (sg) {
+          if (f)
+            return ($("aErr").textContent =
+              "That email already has an account. Try logging in.");
+          me = {
+            id: "u" + Date.now(),
+            name,
+            email,
+            hash: h,
+            saved: [...guest],
+            created: new Date().toISOString().slice(0, 10),
+          };
+          users.push(me);
+          saveUsers();
+          toast("Account created. Welcome, " + name.split(" ")[0] + "!");
+        } else {
+          if (!f || f.hash !== h)
+            return ($("aErr").textContent = "Email or password is wrong.");
+          me = f;
+          toast("Welcome back, " + me.name.split(" ")[0]);
+        }
+        localStorage.setItem("pf_session", me.id);
+        $("aForm").reset();
+        updAuth();
+        closeModal();
+        found.length && showResults(found);
+      });
+      $("logout").onclick = () => {
+        localStorage.removeItem("pf_session");
+        me = null;
+        updAuth();
+        closeModal();
+        found.length && showResults(found);
+        toast("Logged out");
+      };
+      $("dl").onclick = () => {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(
+          new Blob([JSON.stringify(users, null, 2)], {
+            type: "application/json",
+          }),
+        );
+        a.download = "users.json";
+        a.click();
+      };
+
+      (async () => {
+        await loadUsers();
+        const sid = localStorage.getItem("pf_session");
+        if (sid) me = users.find((u) => u.id === sid) || null;
+        updAuth();
+      })();
+    </script>
+  </body>
+</html>
