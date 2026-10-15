@@ -1,0 +1,7 @@
+[
+  {"id":1,"name":"Third Wave Coffee","type":"cafe","lat":12.9716,"lon":77.5946,"address":"MG Road, Bengaluru"},
+  {"id":2,"name":"Apollo Pharmacy","type":"pharmacy","lat":12.9750,"lon":77.6050,"address":"Indiranagar, Bengaluru"},
+  {"id":3,"name":"Cubbon Park","type":"park","lat":12.9763,"lon":77.5929,"address":"Kasturba Road, Bengaluru"},
+  {"id":4,"name":"SBI ATM","type":"atm","lat":12.9698,"lon":77.6000,"address":"Brigade Road, Bengaluru"},
+  {"id":5,"name":"Corner House Cafe","type":"cafe","lat":12.9600,"lon":77.5800,"address":"Jayanagar, Bengaluru"}
+]
